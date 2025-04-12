@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV to SQL Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #drop-area, #drop-area-countries {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #drop-area.hover, #drop-area-countries.hover {
+            border-color: #333;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CSV to SQL Olympics Main Data Converter</h1>
+    <div id="drop-area-countries">
+        <p>Drag and drop the COUNTRIES CSV file, or click to select a file.</p>
+        <input type="file" id="file-input-countries" accept=".csv" style="display: none;">
+    </div>
+    <div id="drop-area">
+        <p>Drag and dropthe MAIN CSV file, or click to select a file.</p>
+        <input type="file" id="file-input-main" accept=".csv" style="display: none;">
+    </div>
+    <textarea id="outputCountries" placeholder="SQL Country Table" readonly></textarea>
+    <textarea id="output" placeholder="SQL Table" readonly></textarea>
+
+
+
+    <script>
+        const dropAreaCountries = document.getElementById('drop-area-countries');
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input-main');
+        const fileInputCountries = document.getElementById('file-input-countries');
+        const output = document.getElementById('output');
+        const outputCountries = document.getElementById('outputCountries');
+
+
+
+        // ================================ COUNTRIES ================================
+        let country = {};
+        dropAreaCountries.addEventListener('click', () => fileInputCountries.click());
+        dropAreaCountries.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropAreaCountries.classList.add('hover');
+        });
+
+        dropAreaCountries.addEventListener('dragleave', () => {
+            dropAreaCountries.classList.remove('hover');
+        });
+
+        dropAreaCountries.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropAreaCountries.classList.remove('hover');
+            const file = e.dataTransfer.files[0];
+            if (file) processFileCountries(file);
+        });
+        fileInputCountries.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processFileCountries(file);
+        });
+        function processFileCountries(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const csv = e.target.result;
+                outputCountries.value = convertCountriesCsvToSql(csv);
+            };
+            reader.readAsText(file);
+        }
+        function convertCountriesCsvToSql(csv) {
+            const lines = csv.split('\r').filter(line => line.trim() !== '');
+            const headers = lines[0].split(',').map(header => header.trim());
+            const tableName = 'Country'; // Change this to your table name
+            const count = 2; // Number of columns to use
+            const sqlStatements = lines.slice(1).map(line => {
+                const values = line.split(',');//.map(value => `'${value.trim()}'`);
+                let NOC = values[0];
+                let name = values[1].replaceAll("'", "''");
+                let h_NOC = headers[0];
+                let h_name = headers[1];
+                country[NOC] = name;
+                return `INSERT INTO ${tableName} (${h_NOC}, ${h_name}) VALUES ('${NOC}', '${name}');`;
+            });
+            return sqlStatements.join('\n');
+        }
+
+
+        // ================================ MAIN ================================
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('hover');
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('hover');
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('hover');
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+        dropArea.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processFile(file);
+        });
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const csv = e.target.result;
+                output.value = convertCsvToSql(csv);
+
+                downloadFile("OlympicGames.sql",
+                    outputCountries.value + "\n" + output.value);
+
+            };
+            reader.readAsText(file);
+        }
+        function downloadFile(filename, content) {
+                // Downlaod as a file
+                const element = document.createElement('a');
+                element.setAttribute('href', 'data:text/plain;charset=utf-8,'
+                    + encodeURIComponent(content));
+                element.setAttribute('download', filename);
+
+                element.style.display = 'none';
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+        }
+
+        // Splice out certain sql calls (ex. get only "Person" inserts)
+        function spliceSqlCalls(sql, callType) {
+            return sql
+                .split("\n")
+                .filter(line => line.trim().includes(callType))
+                .join('\n');
+        }
+
+
+        // ################################################
+        // ############# CONVERTING MAIN FILE #############
+        // ################################################
+        var events = {};
+        var person = {};
+        var olympicGames = {};
+        function convertCsvToSql(csv) {
+            const lines = csv.split('\r').filter(line => line.trim() !== '');
+            const headers = lines[0].split(',').map(header => header.trim());
+            
+            function insert(res, table, keys, values) {
+                if(res != "") res += "\n";
+                return res + `INSERT INTO ${table} ${keys} VALUES ${values};`;
+            }
+
+            var eventId = 1;
+            var olympicGameId = 1;
+            var competitorId = 1;
+            const sqlStatements = lines.slice(1).map(line => {
+
+                let values = line.replaceAll('\n', '').split(/,\s*(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                values.forEach((e, i) => values[i] = e.replace(/^"|"$/g, ''));
+
+                for(var i=0; i<values.length; i++)
+                    values[i] = values[i].replaceAll('"', "");
+
+                let res = "";
+                let personID = values[0];
+                let name = values[1].replaceAll("'", "''");
+                let isMale = values[2]=='M' ? 'TRUE' : 'FALSE';
+                let age = values[3];
+                let height = values[4] == "NA" ? "NULL" : values[4];
+                let weight = values[5] == "NA" ? "NULL" : values[5];
+                let noc = `'${values[7]}'`;
+                if(country[noc] == undefined) noc = "NULL";
+                let year = values[9];
+                let isWinter = values[10] == 'Winter' ? 'TRUE' : 'FALSE';
+                let city = values[11].replaceAll("'", "''");
+                let sport = values[12].replaceAll("'", "''");
+                let event = values[13].replace(values[12], "").replaceAll("'", "''").trim();
+                let sport_event = `${sport}-${event}`;
+                let medal = `'${values[14]}'`;
+                if(values[14] == "NA") medal = 'NULL';
+
+                // Person Table
+                if(person[personID] == undefined) {
+                    res = insert(res, 'Person',
+                        `(person_id, name, is_male, height, weight)`,
+                        `(${personID}, '${name}', ${isMale}, ${height}, ${weight})`);
+                    person[personID] = personID;
+                }
+
+                //  Olympic Games Table
+                if(olympicGames[year] == undefined) {
+                    res = insert(res, 'OlympicGame',
+                        `(year, is_winter, city)`,
+                        `(${year}, ${isWinter}, '${city}')`);
+                    olympicGames[year] = olympicGameId++;
+                }
+
+                // Events Table
+                if(events[`${sport_event}`] == undefined) {
+                    res = insert(res, 'SportEvent',
+                        `(event_id, name, sport_name, is_winter)`,
+                        `(${eventId}, '${event}', '${sport}', ${isWinter})`);
+                    events[`${sport_event}`] = eventId++;
+                }
+
+                // Competitor Table
+                var cID = competitorId++;
+                var eID = events[`${sport_event}`];
+                res = insert(res, 'Competitor',
+                    `(competitor_id, event_id, person_id, year, noc, medal)`,
+                    `(${cID}, ${eID}, ${personID}, ${year}, ${noc}, ${medal})`);
+                
+                return res;
+            });
+            return sqlStatements.filter(value => value.trim() !== '').join('\n');
+        }
+    </script>
+</body>
+</html></html>
