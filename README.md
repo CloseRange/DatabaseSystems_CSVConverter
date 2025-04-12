@@ -24,7 +24,6 @@ I used chatgpt to get a basic html layout then In java I wrote the converter.
 1. The program iterates over each row adding to a finalized string full of 'INSERT' statements
 2. For each row split on the comma delimiter.
 3. For each row, add a `INSERT` statement for each event/person/game/country/competitor
-3. * NOTE: The program keeps an bare bones internal map of each table,
-if the column already exists (for example a person is mentioned more than once) then we can skip that particular insert
+    * NOTE: The program keeps an bare bones internal map of each table, if the column already exists (for example a person is mentioned more than once) then we can skip that particular insert
 4. Translate each inserted 'INSERT' into one big string.
 5. Download the text file
