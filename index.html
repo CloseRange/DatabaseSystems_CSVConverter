@@ -86,7 +86,7 @@
             const tableName = 'Country'; // Change this to your table name
             const count = 2; // Number of columns to use
             const sqlStatements = lines.slice(1).map(line => {
-                const values = line.split(',');//.map(value => `'${value.trim()}'`);
+                const values = line.replaceAll("\n", "").trim().split(',');//.map(value => `'${value.trim()}'`);
                 let NOC = values[0];
                 let name = values[1].replaceAll("'", "''");
                 let h_NOC = headers[0];
@@ -127,8 +127,19 @@
                 const csv = e.target.result;
                 output.value = convertCsvToSql(csv);
 
-                downloadFile("OlympicGames.sql",
-                    outputCountries.value + "\n" + output.value);
+                // downloadFile("OlympicGames.sql",
+                //     outputCountries.value + "\n" + output.value);
+                
+                downloadFile("OlympicGames_Country.sql",
+                    outputCountries.value);
+                downloadFile("OlympicGames_Competitors.sql",
+                    spliceSqlCalls(output.value, "INSERT INTO Competitor"));
+                downloadFile("OlympicGames_Person.sql",
+                    spliceSqlCalls(output.value, "INSERT INTO Person"));
+                downloadFile("OlympicGames_SportEvent.sql",
+                    spliceSqlCalls(output.value, "INSERT INTO SportEvent"));
+                downloadFile("OlympicGames_OlympicGame.sql",
+                    spliceSqlCalls(output.value, "INSERT INTO OlympicGame"));
 
             };
             reader.readAsText(file);
@@ -188,8 +199,9 @@
                 let age = values[3];
                 let height = values[4] == "NA" ? "NULL" : values[4];
                 let weight = values[5] == "NA" ? "NULL" : values[5];
+                if(values[7] == 'SGP') values[7] = 'SIN';
                 let noc = `'${values[7]}'`;
-                if(country[noc] == undefined) noc = "NULL";
+                if(country[values[7]] == undefined) noc = "NULL";
                 let year = values[9];
                 let isWinter = values[10] == 'Winter' ? 'TRUE' : 'FALSE';
                 let city = values[11].replaceAll("'", "''");
@@ -208,11 +220,11 @@
                 }
 
                 //  Olympic Games Table
-                if(olympicGames[year] == undefined) {
+                if(olympicGames[`${year}-${isWinter}`] == undefined) {
                     res = insert(res, 'OlympicGame',
                         `(year, is_winter, city)`,
                         `(${year}, ${isWinter}, '${city}')`);
-                    olympicGames[year] = olympicGameId++;
+                    olympicGames[`${year}-${isWinter}`] = olympicGameId++;
                 }
 
                 // Events Table
@@ -227,8 +239,8 @@
                 var cID = competitorId++;
                 var eID = events[`${sport_event}`];
                 res = insert(res, 'Competitor',
-                    `(competitor_id, event_id, person_id, year, noc, medal)`,
-                    `(${cID}, ${eID}, ${personID}, ${year}, ${noc}, ${medal})`);
+                    `(competitor_id, event_id, person_id, year, noc, is_winter, medal)`,
+                    `(${cID}, ${eID}, ${personID}, ${year}, ${noc}, ${isWinter}, ${medal})`);
                 
                 return res;
             });
